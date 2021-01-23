@@ -1,0 +1,4 @@
+rootProject.name = "Task Builder"
+include ':app'
+include ':ContextMenu'
+include ':DraggableSwipableExpandableRecyclerView'
