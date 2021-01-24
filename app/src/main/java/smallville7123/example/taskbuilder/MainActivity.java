@@ -16,8 +16,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        TaskBuilderView taskBuilderView = new TaskBuilderView(this);
-        setContentView(taskBuilderView);
+
+        TaskListView taskListView = new TaskListView(this);
+        setContentView(taskListView);
 
         TaskList list = new TaskList();
         list.add("nothing");
@@ -100,6 +101,6 @@ public class MainActivity extends AppCompatActivity {
                 }
         );
 
-        taskBuilderView.setTaskList(list, 40f);
+        taskListView.setTaskList(list, 40f);
     }
 }

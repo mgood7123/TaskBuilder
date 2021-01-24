@@ -1,6 +1,7 @@
 package smallville7123.example.taskbuilder;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -23,6 +24,7 @@ import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.Expandabl
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.RecyclerListAdapter;
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.ShadowItemTouchHelper;
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.SimpleShadowItemTouchHelperCallback;
+import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.ViewHolder;
 import smallville7123.contextmenu.ContextWindow;
 import smallville7123.contextmenu.ContextWindowItem;
 
@@ -36,13 +38,52 @@ public class TaskBuilderView extends FrameLayout {
 
     private static final String TAG = "TaskBuilderView";
     private static final CharSequence NO_DESCRIPTION = "No Description Provided";
+    RecyclerView recyclerView;
     RecyclerListAdapter adapter;
+    SimpleShadowItemTouchHelperCallback simpleShadowItemTouchHelperCallback;
     int taskCount = 0;
     ContextWindow mainMenu;
     View taskListContainer;
     View taskEditContainer;
     TextView taskName;
     FrameLayout parametersView;
+    EditListener onEditListener;
+    static Object step_tag = new Object();
+    static int orange = Color.rgb(255,165, 0);
+
+    public RecyclerListAdapter requestNewAdapter() {
+        return new RecyclerListAdapter() {
+            @Override
+            public void onBindViewHolder(ViewHolder holder, int position) {
+                View view = mItems.get(position);
+                if (view != null) {
+                    TextView step = view.findViewWithTag(step_tag);
+                    if (step != null) {
+                        step.setText((position + 1) + ". ");
+                    }
+                }
+                holder.setItem(view);
+            }
+        };
+    }
+
+    public void setAdapter(RecyclerListAdapter adapter) {
+        this.adapter = adapter;
+        recyclerView.setAdapter(adapter);
+        simpleShadowItemTouchHelperCallback.setAdapter(adapter);
+    }
+
+    public RecyclerListAdapter getAdapter() {
+        return adapter;
+    }
+
+    public interface EditListener {
+        void run(boolean visible);
+    }
+
+    public void setOnEditListener(EditListener editListener) {
+        onEditListener = editListener;
+    }
 
     public TaskBuilderView(Context context) {
         this(context, null);
@@ -85,8 +126,9 @@ public class TaskBuilderView extends FrameLayout {
     }
 
     void initEditList(Context context, TaskList task, View generated, TaskList.Parameters parameters, TextView parameterDesc, boolean isCreate) {
-        taskEditContainer.setVisibility(VISIBLE);
         taskListContainer.setVisibility(GONE);
+        taskEditContainer.setVisibility(VISIBLE);
+        if (onEditListener != null) onEditListener.run(true);
         taskName.setText(task.name);
         if (parametersView.getChildCount() == 1) parametersView.removeViewAt(0);
         parametersView.addView(generated, new FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
@@ -103,6 +145,7 @@ public class TaskBuilderView extends FrameLayout {
 
     void showTaskList() {
         taskEditContainer.setVisibility(GONE);
+        if (onEditListener != null) onEditListener.run(false);
         taskListContainer.setVisibility(VISIBLE);
     }
 
@@ -118,7 +161,7 @@ public class TaskBuilderView extends FrameLayout {
         Drawable original = floatingActionButton.getDrawable();
         Drawable onDrag = getDrawable(context, ic_menu_delete);
 
-        RecyclerView recyclerView = taskBuilderView.findViewById(R.id.recyclerView);
+        recyclerView = taskBuilderView.findViewById(R.id.recyclerView);
 
         mainMenu = new ContextWindow(context);
 
@@ -151,12 +194,13 @@ public class TaskBuilderView extends FrameLayout {
             return false;
         });
 
-        adapter = new RecyclerListAdapter();
-        recyclerView.setAdapter(adapter);
+        adapter = requestNewAdapter();
+
+        simpleShadowItemTouchHelperCallback = new SimpleShadowItemTouchHelperCallback(null);
+        setAdapter(adapter);
         recyclerView.setLayoutManager(new LinearLayoutManager(context));
-        new ShadowItemTouchHelper(
-                new SimpleShadowItemTouchHelperCallback(adapter)
-        ).attachToRecyclerView(recyclerView);
+        ShadowItemTouchHelper shadowItemTouchHelper = new ShadowItemTouchHelper(simpleShadowItemTouchHelperCallback);
+        shadowItemTouchHelper.attachToRecyclerView(recyclerView);
 
         FloatingActionButton runListButton = taskBuilderView.findViewById(R.id.floatingActionButton3);
         runListButton.setOnClickListener(
@@ -187,10 +231,21 @@ public class TaskBuilderView extends FrameLayout {
         parameterDesc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f);
         parameterDesc.setText(NO_DESCRIPTION, TextView.BufferType.SPANNABLE);
 
+        LinearLayout content = new LinearLayout(context);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.addView(title, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1f));
+        content.addView(parameterDesc, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1f));
+
         LinearLayout header = new LinearLayout(context);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.addView(title, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1f));
-        header.addView(parameterDesc, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1f));
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        TextView step = new TextView(context);
+        step.setTag(step_tag);
+        step.setText("0. ");
+        step.setTextSize(TypedValue.COMPLEX_UNIT_SP, 50f);
+        step.setTextColor(orange);
+
+        header.addView(step, new LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT, 1f));
+        header.addView(content, new LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT, 1f));
 
 
         adapter.mItems.add(new ExpandableView(context) {
