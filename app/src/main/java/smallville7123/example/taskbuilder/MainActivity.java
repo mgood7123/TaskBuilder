@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
                                         length = Toast.LENGTH_LONG;
                                         break;
                                     default:
-                                        Toast.makeText(context, "Toast length is invalid, please select a length", length).show();
+                                        Toast.makeText(context, "Toast length is invalid, please select a length", Toast.LENGTH_LONG).show();
                                         return false;
                                 }
                                 text = editText.getText();
