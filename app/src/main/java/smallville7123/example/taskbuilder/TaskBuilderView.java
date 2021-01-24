@@ -9,8 +9,8 @@ import android.view.DragEvent;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -28,12 +28,14 @@ import smallville7123.contextmenu.ContextWindowItem;
 
 import static android.R.drawable.ic_menu_delete;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static androidx.appcompat.content.res.AppCompatResources.getDrawable;
 import static smallville7123.DraggableSwipableExpandableRecyclerView.Contents.ShadowItemTouchHelper.Callback.getDragInfo;
 
 public class TaskBuilderView extends FrameLayout {
 
     private static final String TAG = "TaskBuilderView";
+    private static final CharSequence NO_DESCRIPTION = "No Description Provided";
     RecyclerListAdapter adapter;
     int taskCount = 0;
     ContextWindow mainMenu;
@@ -52,24 +54,48 @@ public class TaskBuilderView extends FrameLayout {
 
     Toast noView;
 
-    void showTaskEdit(TaskList task) {
-        if (task.addView == null) {
-//            noView.cancel();
-            noView.setText("The item '" + task.name + "' has no parameters");
+    void showTaskEdit(TaskList task, TextView parameterDesc, TaskList.Parameters parameters, boolean isCreate) {
+        // first, check edge cases: no builder, no generated view, no parameters
+        if (task.builder == null) {
+            noView.setText("The item '" + task.name + "' has no builder");
             noView.show();
-            addTask(task.name);
+            if (isCreate) addTask(task, null);
             showTaskList();
             return;
         }
+        Context context = getContext();
+        View generated = task.builder.generateEditView(context, LayoutInflater.from(context), task);
+        if (generated == null) {
+            noView.setText("The item '" + task.name + "' has no view");
+            noView.show();
+            if (isCreate) addTask(task, null);
+            showTaskList();
+            return;
+        }
+        if (isCreate) parameters = task.builder.generateParameters();
+        if (parameters == null) {
+            noView.setText("The item '" + task.name + "' has no parameters");
+            noView.show();
+            if (isCreate) addTask(task, null);
+            showTaskList();
+            return;
+        }
+        // everything seems to be stable, get to work
+        initEditList(context, task, generated, parameters, parameterDesc, isCreate);
+    }
+
+    void initEditList(Context context, TaskList task, View generated, TaskList.Parameters parameters, TextView parameterDesc, boolean isCreate) {
         taskEditContainer.setVisibility(VISIBLE);
         taskListContainer.setVisibility(GONE);
         taskName.setText(task.name);
         if (parametersView.getChildCount() == 1) parametersView.removeViewAt(0);
-        View v = task.addView.run(LayoutInflater.from(getContext()), task);
-        parametersView.addView(v, new FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+        parametersView.addView(generated, new FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+        parameters.acquireViewIDsInEditView(generated);
+        if (!isCreate) parameters.restoreParametersInEditView(context, generated);
         taskEditContainer.findViewById(R.id.doneButton).setOnClickListener(unused -> {
-            if (task.checkParameters.run(v)) {
-                addTask(task.name);
+            if (parameters.checkParametersAreValid(context, generated)) {
+                TextView desc = isCreate ? addTask(task, parameters) : parameterDesc;
+                desc.setText(parameters.getParameterDescription());
                 showTaskList();
             }
         });
@@ -131,22 +157,51 @@ public class TaskBuilderView extends FrameLayout {
         new ShadowItemTouchHelper(
                 new SimpleShadowItemTouchHelperCallback(adapter)
         ).attachToRecyclerView(recyclerView);
+
+        FloatingActionButton runListButton = taskBuilderView.findViewById(R.id.floatingActionButton3);
+        runListButton.setOnClickListener(
+                v -> {
+                    for (View mItem : adapter.mItems) {
+                        if (mItem instanceof ExpandableView) {
+                            ExpandableView item = (ExpandableView) mItem;
+                            Object tag = item.getHeaderTag();
+                            if (tag instanceof TaskList.Parameters) {
+                                TaskList.Parameters parameters = (TaskList.Parameters) tag;
+                                parameters.generateAction(context).run();
+                            }
+                        }
+                    }
+                }
+        );
     }
 
-    public void addTask(String taskName) {
+    public TextView addTask(TaskList task, TaskList.Parameters parameters) {
         taskCount++;
         Context context = getContext();
 
-        TextView header = new TextView(context);
-        header.setText(taskName);
-        header.setTextSize(TypedValue.COMPLEX_UNIT_SP, 50f);
+        TextView title = new TextView(context);
+        title.setText(task.name);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 50f);
+
+        TextView parameterDesc = new TextView(context);
+        parameterDesc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f);
+        parameterDesc.setText(NO_DESCRIPTION, TextView.BufferType.SPANNABLE);
+
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.addView(title, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1f));
+        header.addView(parameterDesc, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1f));
+
 
         adapter.mItems.add(new ExpandableView(context) {
             {
                 setHeader(header);
+                setHeaderTag(parameters);
+                setOnHeaderClicked(() -> showTaskEdit(task, parameterDesc, parameters, false));
             }
         });
         adapter.notifyDataSetChanged();
+        return parameterDesc;
     }
 
     void setTaskList(TaskList list, ContextWindow window, float textSize) {
@@ -159,12 +214,11 @@ public class TaskBuilderView extends FrameLayout {
                 if (taskList.name != null) {
                     if (taskList.arrayList.isEmpty()) {
                         ContextWindowItem item = window.addItem(taskList.name, textSize);
-                        item.data = taskList.action;
-                        item.setOnClickListener(unused -> showTaskEdit(taskList));
+                        item.setOnClickListener(unused -> showTaskEdit(taskList, taskName, null, true));
                     } else {
                         ContextWindowItem item = window.addSubMenu(taskList.name, textSize);
-                        if (taskList.action != null) {
-                            Log.w(TAG, "setTaskList: item '" + taskList.name + "' contains an action, however it contains sub taskList's and as such is treated as a sub menu, and sub menu actions have no effect");
+                        if (taskList.builder != null) {
+                            Log.w(TAG, "setTaskList: item '" + taskList.name + "' contains a task builder, however it contains sub taskList's and as such is treated as a sub menu, and sub menu task builder's have no effect");
                         }
                         for (TaskList taskList1 : taskList.arrayList) {
                             setTaskList(taskList1, item.subMenu, textSize);
@@ -177,13 +231,12 @@ public class TaskBuilderView extends FrameLayout {
             if (list.arrayList.isEmpty()) {
                 if (list.name != null) {
                     ContextWindowItem item = window.addItem(list.name, textSize);
-                    item.data = list.action;
-                    item.setOnClickListener(unused -> showTaskEdit(list));
+                    item.setOnClickListener(unused -> showTaskEdit(list, taskName, null, true));
                 }
             } else {
                 ContextWindowItem item = window.addSubMenu(list.name, textSize);
-                if (list.action != null) {
-                    Log.w(TAG, "setTaskList: item '" + list.name + "' contains an action, however it contains sub taskList's and as such is treated as a sub menu, and sub menu actions have no effect");
+                if (list.builder != null) {
+                    Log.w(TAG, "setTaskList: item '" + list.name + "' contains a task builder, however it contains sub taskList's and as such is treated as a sub menu, and sub menu task builder's have no effect");
                 }
                 for (TaskList taskList : list.arrayList) {
                     setTaskList(taskList, item.subMenu, textSize);
