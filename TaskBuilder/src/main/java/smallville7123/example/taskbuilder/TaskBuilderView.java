@@ -3,6 +3,7 @@ package smallville7123.example.taskbuilder;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.text.SpannableStringBuilder;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.TypedValue;
@@ -18,7 +19,14 @@ import android.widget.Toast;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.ExpandableView;
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.RecyclerListAdapter;
@@ -32,9 +40,11 @@ import static android.R.drawable.ic_menu_delete;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static androidx.appcompat.content.res.AppCompatResources.getDrawable;
-import static smallville7123.DraggableSwipableExpandableRecyclerView.Contents.ShadowItemTouchHelper.Callback.getDragInfo;
 
 public class TaskBuilderView extends FrameLayout {
+
+    public static final String default_TextView_hint_optional = "(Optional)";
+    public static final String default_TextView_hint_required = "(Required)";
 
     private static final String TAG = "TaskBuilderView";
     private static final CharSequence NO_DESCRIPTION = "No Description Provided";
@@ -49,9 +59,63 @@ public class TaskBuilderView extends FrameLayout {
     FrameLayout parametersView;
     EditListener onEditListener;
     static Object step_tag = new Object();
+    static Object task_tag = new Object();
     static int orange = Color.rgb(255,165, 0);
+    static Kryo kryo = new Kryo();
 
-    public RecyclerListAdapter requestNewAdapter() {
+    Output writeKryo() {
+        Output output = new Output(1024, -1);
+        TaskBuilderSerializer.write(kryo, output, adapter);
+        return output;
+    }
+
+    void writeKryo(FileOutputStream fileOutputStream) {
+        Output output = new Output(fileOutputStream);
+        TaskBuilderSerializer.write(kryo, output, adapter);
+        output.close();
+    }
+
+    public void writeKryoToFile(Context context, String relativePath) {
+        writeKryoToFile(context.getFilesDir() + "/" + relativePath);
+    }
+
+    public void writeKryoToFile(String absolutePath) {
+        try {
+            FileOutputStream fileOutputStream = new FileOutputStream(absolutePath);
+            writeKryo(fileOutputStream);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void readKryo(Context context, Output output, TaskList list) {
+        if (output == null) return;
+        Input input = new Input(output.getBuffer(), 0, output.position());
+        RecyclerListAdapter recyclerListAdapter = TaskBuilderSerializer.read(context, kryo, input, list, this);
+        setAdapter(recyclerListAdapter);
+    }
+
+    void readKryo(Context context, FileInputStream fileInputStream, TaskList list) {
+        Input input = new Input(fileInputStream);
+        RecyclerListAdapter recyclerListAdapter = TaskBuilderSerializer.read(context, kryo, input, list, this);
+        input.close();
+        setAdapter(recyclerListAdapter);
+    }
+
+    public void readKryoFromRelativeFilePath(Context context, String relativePath, TaskList list) {
+        readKryoFromAbsoluteFilePath(context, context.getFilesDir() + "/" + relativePath, list);
+    }
+
+    public void readKryoFromAbsoluteFilePath(Context context, String absolutePath, TaskList list) {
+        try {
+            FileInputStream fileInputStream = new FileInputStream(absolutePath);
+            readKryo(context, fileInputStream, list);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static RecyclerListAdapter requestNewAdapter() {
         return new RecyclerListAdapter() {
             @Override
             public void onBindViewHolder(ViewHolder holder, int position) {
@@ -71,6 +135,7 @@ public class TaskBuilderView extends FrameLayout {
         this.adapter = adapter;
         recyclerView.setAdapter(adapter);
         simpleShadowItemTouchHelperCallback.setAdapter(adapter);
+        adapter.notifyDataSetChanged();
     }
 
     public RecyclerListAdapter getAdapter() {
@@ -95,7 +160,69 @@ public class TaskBuilderView extends FrameLayout {
 
     Toast noView;
 
-    void showTaskEdit(TaskList task, TextView parameterDesc, TaskList.Parameters parameters, boolean isCreate) {
+    public void populate(Context context, RecyclerListAdapter recyclerListAdapter, TaskParameters params, String taskName, TaskList taskList) {
+        // we can instance everything except the view
+
+        TaskList task = taskList.getTask(taskName);
+        if (task == null) {
+            Log.e(TAG, "The item '" + taskName + "' does not exist");
+            return;
+        }
+        if (task.builder == null) {
+            Log.e(TAG, "The item '" + task.name + "' has no builder");
+            return;
+        }
+
+        TextView title = new TextView(context);
+        title.setText(task.name);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 50f);
+        title.setTag(task_tag);
+
+        TextView parameterDesc = new TextView(context);
+        parameterDesc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f);
+
+        SpannableStringBuilder description = null;
+
+        if (params != null) {
+            description = params.getParameterDescription();
+        }
+
+        if (description != null) {
+            parameterDesc.setText(description, TextView.BufferType.SPANNABLE);
+        } else {
+            parameterDesc.setText(NO_DESCRIPTION, TextView.BufferType.SPANNABLE);
+        }
+
+        LinearLayout content = new LinearLayout(context);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.addView(title, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1f));
+        content.addView(parameterDesc, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1f));
+
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        TextView step = new TextView(context);
+        step.setTag(step_tag);
+        step.setText("0. ");
+        step.setTextSize(TypedValue.COMPLEX_UNIT_SP, 50f);
+        step.setTextColor(orange);
+
+        header.addView(step, new LinearLayout.LayoutParams(WRAP_CONTENT, MATCH_PARENT));
+        header.addView(content, new LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+
+
+        recyclerListAdapter.mItems.add(new ExpandableView(context) {
+            {
+                setHeader(header);
+                setHeaderTag(params);
+                setOnHeaderClicked(() -> {
+                    showTaskEdit(task, parameterDesc, params, false);
+                });
+            }
+        });
+        recyclerListAdapter.notifyDataSetChanged();
+    }
+
+    void showTaskEdit(TaskList task, TextView parameterDesc, TaskParameters parameters, boolean isCreate) {
         // first, check edge cases: no builder, no generated view, no parameters
         if (task.builder == null) {
             noView.setText("The item '" + task.name + "' has no builder");
@@ -106,14 +233,17 @@ public class TaskBuilderView extends FrameLayout {
         }
         Context context = getContext();
         View generated = task.builder.generateEditView(context, LayoutInflater.from(context), task);
+        if (isCreate) parameters = task.builder.generateParameters();
         if (generated == null) {
             noView.setText("The item '" + task.name + "' has no view");
             noView.show();
-            if (isCreate) addTask(task, null);
+            if (isCreate) {
+                TextView desc = addTask(task, parameters);
+                desc.setText(parameters.getParameterDescription());
+            }
             showTaskList();
             return;
         }
-        if (isCreate) parameters = task.builder.generateParameters();
         if (parameters == null) {
             noView.setText("The item '" + task.name + "' has no parameters");
             noView.show();
@@ -125,7 +255,7 @@ public class TaskBuilderView extends FrameLayout {
         initEditList(context, task, generated, parameters, parameterDesc, isCreate);
     }
 
-    void initEditList(Context context, TaskList task, View generated, TaskList.Parameters parameters, TextView parameterDesc, boolean isCreate) {
+    void initEditList(Context context, TaskList task, View generated, TaskParameters parameters, TextView parameterDesc, boolean isCreate) {
         taskListContainer.setVisibility(GONE);
         taskEditContainer.setVisibility(VISIBLE);
         if (onEditListener != null) onEditListener.run(true);
@@ -174,17 +304,20 @@ public class TaskBuilderView extends FrameLayout {
         });
         floatingActionButton.setOnDragListener((v, event) -> {
             final int action = event.getAction();
+            ShadowItemTouchHelper.Callback.DragInfo dragInfo = ShadowItemTouchHelper.Callback.getDragInfo(event);
             switch(action) {
                 case DragEvent.ACTION_DROP:
                     RecyclerListAdapter adapter = (RecyclerListAdapter) recyclerView.getAdapter();
-                    int position = getDragInfo(event).adapterPosition;
+                    int position = dragInfo.adapterPosition;
                     adapter.mItems.remove(position);
                     adapter.notifyItemRemoved(position);
+                    adapter.notifyItemRangeChanged(position, adapter.mItems.size() - position);
                 case DragEvent.ACTION_DRAG_LOCATION:
                 case DragEvent.ACTION_DRAG_ENTERED:
                 case DragEvent.ACTION_DRAG_EXITED:
                     return true;
                 case DragEvent.ACTION_DRAG_STARTED:
+                    if (dragInfo == null) return false;
                     floatingActionButton.setImageDrawable(onDrag);
                     return true;
                 case DragEvent.ACTION_DRAG_ENDED:
@@ -209,9 +342,10 @@ public class TaskBuilderView extends FrameLayout {
                         if (mItem instanceof ExpandableView) {
                             ExpandableView item = (ExpandableView) mItem;
                             Object tag = item.getHeaderTag();
-                            if (tag instanceof TaskList.Parameters) {
-                                TaskList.Parameters parameters = (TaskList.Parameters) tag;
-                                parameters.generateAction(context).run();
+                            if (tag instanceof TaskParameters) {
+                                TaskParameters parameters = (TaskParameters) tag;
+                                Runnable action = parameters.generateAction(context);
+                                if (action != null) action.run();
                             }
                         }
                     }
@@ -219,13 +353,14 @@ public class TaskBuilderView extends FrameLayout {
         );
     }
 
-    public TextView addTask(TaskList task, TaskList.Parameters parameters) {
+    public TextView addTask(TaskList task, TaskParameters parameters) {
         taskCount++;
         Context context = getContext();
 
         TextView title = new TextView(context);
         title.setText(task.name);
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 50f);
+        title.setTag(task_tag);
 
         TextView parameterDesc = new TextView(context);
         parameterDesc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f);
@@ -244,15 +379,17 @@ public class TaskBuilderView extends FrameLayout {
         step.setTextSize(TypedValue.COMPLEX_UNIT_SP, 50f);
         step.setTextColor(orange);
 
-        header.addView(step, new LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT, 1f));
-        header.addView(content, new LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT, 1f));
+        header.addView(step, new LinearLayout.LayoutParams(WRAP_CONTENT, MATCH_PARENT));
+        header.addView(content, new LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT));
 
 
         adapter.mItems.add(new ExpandableView(context) {
             {
                 setHeader(header);
                 setHeaderTag(parameters);
-                setOnHeaderClicked(() -> showTaskEdit(task, parameterDesc, parameters, false));
+                setOnHeaderClicked(() -> {
+                    showTaskEdit(task, parameterDesc, parameters, false);
+                });
             }
         });
         adapter.notifyDataSetChanged();

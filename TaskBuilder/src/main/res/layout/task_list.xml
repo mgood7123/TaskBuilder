@@ -83,6 +83,18 @@
         app:layout_constraintTop_toTopOf="parent"
         android:visibility="visible">
 
+        <TextView
+            android:id="@+id/projectList"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="Project List"
+            android:textSize="24sp"
+            app:layout_constraintBottom_toTopOf="@+id/recyclerView"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerView"
             android:layout_width="0dp"
@@ -90,7 +102,7 @@
             app:layout_constraintBottom_toTopOf="@+id/container"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
+            app:layout_constraintTop_toBottomOf="@id/projectList">
 
         </androidx.recyclerview.widget.RecyclerView>
 

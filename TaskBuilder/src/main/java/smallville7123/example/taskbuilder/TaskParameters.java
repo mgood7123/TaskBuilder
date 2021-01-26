@@ -6,23 +6,20 @@ import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.CharacterStyle;
 import android.text.style.StyleSpan;
-import android.view.LayoutInflater;
 import android.view.View;
 
-import java.util.ArrayList;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 
-public class TaskList {
-    ArrayList<TaskList> arrayList = new ArrayList<>();
-    public final String name;
+public abstract class TaskParameters {
+        public abstract void acquireViewIDsInEditView(View view);
+        public abstract boolean checkParametersAreValid(Context context, View view);
+        public abstract void restoreParametersInEditView(Context context, View view);
+        public abstract SpannableStringBuilder getParameterDescription();
+        public abstract Runnable generateAction(Context context);
 
-    public interface Parameters {
-        void acquireViewIDsInEditView(View view);
-        boolean checkParametersAreValid(Context context, View view);
-        void restoreParametersInEditView(Context context, View view);
-        SpannableStringBuilder getParameterDescription();
-        Runnable generateAction(Context context);
-
-        class DescriptionBuilder {
+        public static class DescriptionBuilder {
             final private SpannableStringBuilder builder = new SpannableStringBuilder();
 
             final static StyleSpan normal = new StyleSpan(Typeface.NORMAL);
@@ -95,48 +92,20 @@ public class TaskList {
                 return builder;
             }
         }
-    }
 
-    public interface Builder {
-        View generateEditView(Context context, LayoutInflater inflater, TaskList task);
-        Parameters generateParameters();
-    }
-
-    Builder builder;
-
-    public TaskList(String name, Builder builder) {
-        this.name = name;
-        this.builder = builder;
-    }
-
-    public TaskList() {
-        this.name = null;
-        this.builder = null;
-    }
 
     /**
-     * adds a new task and returns the constructed task, this is often used as a task
+     * Writes the bytes for the object to the output.
+     *
+     * @param kryo
+     * @param output
      */
-    public TaskList add(String name, Builder builder) {
-        TaskList l = new TaskList(name, builder);
-        arrayList.add(l);
-        return l;
-    }
+    public abstract void write(Kryo kryo, Output output);
 
     /**
-     * adds a new task and returns the constructed task, this is often used as a sub menu
+     * Reads bytes and returns a new object of the specified concrete type.
+     * @param kryo
+     * @param input
      */
-    public TaskList add(String name) {
-        TaskList l = new TaskList(name, null);
-        arrayList.add(l);
-        return l;
-    }
-
-    /**
-     * adds an existing task list and returns the given task list
-     */
-    public TaskList add(TaskList taskList) {
-        arrayList.add(taskList);
-        return taskList;
-    }
+    public abstract void read(Kryo kryo, Input input);
 }

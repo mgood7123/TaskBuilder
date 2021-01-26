@@ -12,6 +12,8 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/ContextMenu" />
             <option value="$PROJECT_DIR$/DraggableSwipableExpandableRecyclerView" />
+            <option value="$PROJECT_DIR$/TaskBuilder" />
+            <option value="$PROJECT_DIR$/Tasks" />
             <option value="$PROJECT_DIR$/app" />
           </set>
         </option>
