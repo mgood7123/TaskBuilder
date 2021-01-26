@@ -28,6 +28,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.util.Hashtable;
 
+import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.ExpandableView;
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.RecyclerListAdapter;
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.ShadowItemTouchHelper;
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.SimpleShadowItemTouchHelperCallback;
@@ -242,6 +243,10 @@ public class TaskListView extends FrameLayout {
         recyclerView.setLayoutManager(new LinearLayoutManager(context));
         ShadowItemTouchHelper shadowItemTouchHelper = new ShadowItemTouchHelper(simpleShadowItemTouchHelperCallback);
         shadowItemTouchHelper.attachToRecyclerView(recyclerView);
+    }
+
+    public void run(String listName) {
+        TaskBuilderView.run(getContext(), adapterHashtable.get(listName));
     }
 
     public void addTaskList(String listName) {

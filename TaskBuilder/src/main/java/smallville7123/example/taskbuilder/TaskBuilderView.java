@@ -336,21 +336,30 @@ public class TaskBuilderView extends FrameLayout {
         shadowItemTouchHelper.attachToRecyclerView(recyclerView);
 
         FloatingActionButton runListButton = taskBuilderView.findViewById(R.id.floatingActionButton3);
-        runListButton.setOnClickListener(
-                v -> {
-                    for (View mItem : adapter.mItems) {
-                        if (mItem instanceof ExpandableView) {
-                            ExpandableView item = (ExpandableView) mItem;
-                            Object tag = item.getHeaderTag();
-                            if (tag instanceof TaskParameters) {
-                                TaskParameters parameters = (TaskParameters) tag;
-                                Runnable action = parameters.generateAction(context);
-                                if (action != null) action.run();
-                            }
-                        }
-                    }
+        runListButton.setOnClickListener(v -> run());
+    }
+
+    public static void run(Context context, RecyclerListAdapter adapter) {
+        if (adapter == null) return;
+        for (View mItem : adapter.mItems) {
+            if (mItem instanceof ExpandableView) {
+                ExpandableView item = (ExpandableView) mItem;
+                Object tag = item.getHeaderTag();
+                if (tag instanceof TaskParameters) {
+                    TaskParameters parameters = (TaskParameters) tag;
+                    Runnable action = parameters.generateAction(context);
+                    if (action != null) action.run();
                 }
-        );
+            }
+        }
+    }
+
+    public void run(RecyclerListAdapter adapter) {
+        run(getContext(), adapter);
+    }
+
+    public void run() {
+        run(adapter);
     }
 
     public TextView addTask(TaskList task, TaskParameters parameters) {
