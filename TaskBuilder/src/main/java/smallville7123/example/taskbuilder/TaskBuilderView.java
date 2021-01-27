@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.text.SpannableStringBuilder;
+import android.util.AtomicFile;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.TypedValue;
@@ -24,9 +25,11 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.ExpandableView;
 import smallville7123.DraggableSwipableExpandableRecyclerView.Contents.RecyclerListAdapter;
@@ -69,10 +72,30 @@ public class TaskBuilderView extends FrameLayout {
         return output;
     }
 
-    void writeKryo(FileOutputStream fileOutputStream) {
-        Output output = new Output(fileOutputStream);
-        TaskBuilderSerializer.write(kryo, output, adapter);
-        output.close();
+    void writeKryo(String name) {
+        AtomicFile atomicFile = new AtomicFile(new File(name));
+        try {
+            FileOutputStream backup = atomicFile.startWrite();
+            Output output = new Output(backup);
+            TaskBuilderSerializer.write(kryo, output, adapter);
+            output.flush();
+            atomicFile.finishWrite(backup);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void readKryo(Context context, String name, TaskList list) {
+        AtomicFile atomicFile = new AtomicFile(new File(name));
+        try {
+            FileInputStream fileInputStream = atomicFile.openRead();
+            Input input = new Input(fileInputStream);
+            RecyclerListAdapter recyclerListAdapter = TaskBuilderSerializer.read(context, kryo, input, list, this);
+            input.close(); // fileInputStream.close
+            setAdapter(recyclerListAdapter);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
     public void writeKryoToFile(Context context, String relativePath) {
@@ -80,12 +103,7 @@ public class TaskBuilderView extends FrameLayout {
     }
 
     public void writeKryoToFile(String absolutePath) {
-        try {
-            FileOutputStream fileOutputStream = new FileOutputStream(absolutePath);
-            writeKryo(fileOutputStream);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
+        writeKryo(absolutePath);
     }
 
     void readKryo(Context context, Output output, TaskList list) {
@@ -95,24 +113,12 @@ public class TaskBuilderView extends FrameLayout {
         setAdapter(recyclerListAdapter);
     }
 
-    void readKryo(Context context, FileInputStream fileInputStream, TaskList list) {
-        Input input = new Input(fileInputStream);
-        RecyclerListAdapter recyclerListAdapter = TaskBuilderSerializer.read(context, kryo, input, list, this);
-        input.close();
-        setAdapter(recyclerListAdapter);
-    }
-
     public void readKryoFromRelativeFilePath(Context context, String relativePath, TaskList list) {
         readKryoFromAbsoluteFilePath(context, context.getFilesDir() + "/" + relativePath, list);
     }
 
     public void readKryoFromAbsoluteFilePath(Context context, String absolutePath, TaskList list) {
-        try {
-            FileInputStream fileInputStream = new FileInputStream(absolutePath);
-            readKryo(context, fileInputStream, list);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
+        readKryo(context, absolutePath, list);
     }
 
     public static RecyclerListAdapter requestNewAdapter() {
