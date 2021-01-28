@@ -17,6 +17,7 @@ public class MainActivity extends Activity {
         TaskList list = new TaskList();
         Tasks.addTaskList(list);
         taskListView.setTaskList(list, 40f);
+        taskListView.setOnDoneButtonClicked(() -> taskListView.writeKryoToFile(this, "kryo") );
         taskListView.readKryoFromRelativeFilePath(this, "kryo", list);
     }
 

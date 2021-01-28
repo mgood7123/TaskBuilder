@@ -155,7 +155,14 @@ public class TaskListView extends FrameLayout {
         taskBuilderContainer.findViewById(R.id.doneButton).setOnClickListener(unused -> {
             adapterHashtable.replace(listName, taskBuilderView.getAdapter());
             showTaskList();
+            if (onDoneButtonClicked != null) onDoneButtonClicked.run();
         });
+    }
+
+    Runnable onDoneButtonClicked;
+
+    public void setOnDoneButtonClicked(Runnable onDoneButtonClicked) {
+        this.onDoneButtonClicked = onDoneButtonClicked;
     }
 
     public TaskListView(Context context, AttributeSet attrs, int defStyleAttr) {
